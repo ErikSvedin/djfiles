@@ -97,3 +97,31 @@ def ranges(request, path, document_root):
     if encoding:
         response['Content-Encoding'] = encoding
     return response
+
+
+class Serve(object):
+
+    def get(self, urlpath, *args, **kwargs):
+        return self.find_and_serve(urlpath)
+
+    def find_and_serve(self, urlpath):
+        filepath = self.find(urlpath)
+        return self.conditional_serve(filepath)
+
+    def find(self, urlpath):
+        fullpath = os.path.join(self.document_root, urlpath)
+        if not os.path.exists(fullpath):
+            raise Http404(_('"%(path)s" does not exist') % {'path': fullpath})
+        return fullpath
+    
+    def conditional_serve(self, filepath):
+        statobj = os.stat(filepath)
+        last_modified = http_date(statobj.st_mtime)
+        if self.request.META.get('HTTP_IF_MODIFIED_SINCE') == last_modified:
+            return HttpResponseNotModified()
+        response = self.serve(filepath)
+        response['Last-Modified'] = last_modified
+        return response
+
+    def serve(self, filepath):
+        return FileResponse(open(filepath, 'rb'))
